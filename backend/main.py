@@ -1,18 +1,19 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from deepface import DeepFace
 import cv2
 import numpy as np
 import base64
 import os
-import pickle
-from datetime import datetime
+import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # --- CONFIGURATION ---
-app = FastAPI(title="DeepFace Embedding API")
+app = FastAPI(title="DeepFace Embedding API (Supabase)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,27 +23,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# File to store the "Numbers" (Embeddings)
-DB_FILE = "face_db.pkl"
+# Get DB URL from Hugging Face Secrets
+DB_URL = os.environ.get("DB_URL")
 
-# Load DB into memory on startup
-if os.path.exists(DB_FILE):
+# --- DATABASE CONNECTION ---
+def get_db_connection():
+    if not DB_URL:
+        raise Exception("DB_URL environment variable not found")
+    conn = psycopg2.connect(DB_URL, cursor_factory=RealDictCursor)
+    return conn
+
+def init_db():
+    """Initialize PostgreSQL tables automatically"""
     try:
-        with open(DB_FILE, "rb") as f:
-            face_db = pickle.load(f)
-        print(f"[INFO] Loaded {len(face_db)} users from database.")
-    except Exception:
-        face_db = {}
-        print("[WARN] Database file corrupted or empty. Starting new.")
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # Table 1: Users
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                nim TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        
+        # Table 2: Embeddings (Vectors stored as JSONB)
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS embeddings (
+                id SERIAL PRIMARY KEY,
+                nim TEXT REFERENCES users(nim),
+                vector JSONB
+            );
+        ''')
+
+        # Table 3: Logs
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS logs (
+                id SERIAL PRIMARY KEY,
+                nim TEXT,
+                name TEXT,
+                model TEXT,
+                confidence TEXT,
+                distance REAL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        
+        conn.commit()
+        conn.close()
+        print("[INFO] Database connected and initialized.")
+    except Exception as e:
+        print(f"[ERR] Database init failed: {e}")
+
+# Initialize tables on startup
+if DB_URL:
+    init_db()
 else:
-    face_db = {}
-    print("[INFO] No database found. Starting new.")
+    print("[WARN] No DB_URL found. Check your HF Secrets.")
 
 # --- DATA MODELS ---
 class RegisterRequest(BaseModel):
     nim: str
     name: str
-    images: List[str] # List of Base64 strings
+    images: List[str]
 
 class VerifyRequest(BaseModel):
     image: str
@@ -50,7 +94,6 @@ class VerifyRequest(BaseModel):
 
 # --- HELPER FUNCTIONS ---
 def base64_to_cv2(base64_string):
-    """Convert base64 to OpenCV image"""
     try:
         if "," in base64_string:
             encoded_data = base64_string.split(',')[1]
@@ -61,13 +104,7 @@ def base64_to_cv2(base64_string):
     except:
         return None
 
-def save_db():
-    """Save memory dict to disk"""
-    with open(DB_FILE, "wb") as f:
-        pickle.dump(face_db, f)
-
 def find_cosine_distance(source_representation, test_representation):
-    """Manual calculation of Cosine Distance"""
     a = np.matmul(np.transpose(source_representation), test_representation)
     b = np.sum(np.multiply(source_representation, source_representation))
     c = np.sum(np.multiply(test_representation, test_representation))
@@ -77,99 +114,144 @@ def find_cosine_distance(source_representation, test_representation):
 
 @app.get("/stats")
 def get_stats():
-    return {"status": "success", "total_users": len(face_db)}
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as count FROM users")
+        users = c.fetchone()['count']
+        
+        c.execute("SELECT COUNT(*) as count FROM logs")
+        logs = c.fetchone()['count']
+        conn.close()
+        return {"status": "success", "total_users": users, "total_logs": logs}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/logs")
+def get_logs():
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        # Fetch last 50 logs (Newest first)
+        c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 50")
+        rows = c.fetchall()
+        conn.close()
+        
+        # Fix timestamp format for JSON
+        for row in rows:
+            if row['timestamp']:
+                row['timestamp'] = str(row['timestamp'])
+                
+        return {"status": "success", "data": rows}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/register")
 def register(req: RegisterRequest):
     if not req.nim or not req.name or not req.images:
         raise HTTPException(status_code=400, detail="Missing data")
 
-    embeddings = []
-    
-    # Process all 3 images (Front, Left, Right)
+    new_embeddings = []
+    # Process images
     for img_b64 in req.images:
         img = base64_to_cv2(img_b64)
         if img is None: continue
-
         try:
-            # Generate embedding (list of numbers)
-            # We use Facenet512 as the standard for storage
-            results = DeepFace.represent(
-                img_path=img, 
-                model_name="Facenet512", 
-                enforce_detection=False
-            )
-            if results:
-                embeddings.append(results[0]["embedding"])
-        except Exception as e:
-            print(f"Skipping an image due to error: {e}")
-            continue
+            results = DeepFace.represent(img_path=img, model_name="Facenet512", enforce_detection=False)
+            if results: new_embeddings.append(results[0]["embedding"])
+        except: continue
 
-    if not embeddings:
-        raise HTTPException(status_code=400, detail="No faces detected in the photos")
+    if not new_embeddings:
+        raise HTTPException(status_code=400, detail="No faces detected")
 
-    # Store in memory: NIM -> {Name, List of Embeddings}
-    # We do NOT average them. We keep all distinct angles.
-    face_db[req.nim] = {
-        "name": req.name,
-        "embeddings": embeddings 
-    }
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # 1. Insert User
+        c.execute("""
+            INSERT INTO users (nim, name) VALUES (%s, %s)
+            ON CONFLICT (nim) DO UPDATE SET name = EXCLUDED.name
+        """, (req.nim, req.name))
+        
+        # 2. Insert Embeddings
+        for emb in new_embeddings:
+            c.execute("INSERT INTO embeddings (nim, vector) VALUES (%s, %s)", 
+                      (req.nim, json.dumps(emb)))
+            
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
-    save_db() # Save to .pkl file
-    
-    return {"status": "success", "message": f"Registered {req.name} with {len(embeddings)} vectors."}
+    return {"status": "success", "message": f"Registered {req.name}"}
 
 @app.post("/verify")
 def verify(req: VerifyRequest):
     img = base64_to_cv2(req.image)
     if img is None: raise HTTPException(status_code=400, detail="Invalid image")
 
+    # 1. Convert image to Vector
     try:
-        # 1. Convert incoming face to numbers
         target_embedding = DeepFace.represent(
-            img_path=img,
-            model_name="Facenet512",
+            img_path=img, 
+            model_name="Facenet512", 
             enforce_detection=False
         )[0]["embedding"]
     except:
         return {"status": "failed", "message": "No face detected"}
 
-    # 2. Compare against EVERY saved embedding in the DB
-    best_match_nim = None
-    best_match_name = None
-    min_distance = 100.0 # Start high
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # 2. Fetch all known faces
+        c.execute("SELECT u.nim, u.name, e.vector FROM users u JOIN embeddings e ON u.nim = e.nim")
+        rows = c.fetchall()
+        
+        best_match_nim = None
+        best_match_name = None
+        min_distance = 100.0
+        THRESHOLD = 0.30
 
-    # Threshold for Facenet512 (usually 0.30 is good)
-    THRESHOLD = 0.30 
+        # 3. Compare
+        for row in rows:
+            db_vector = row['vector']
+            if isinstance(db_vector, str): db_vector = json.loads(db_vector) # Handle JSON string if needed
 
-    for nim, data in face_db.items():
-        user_name = data["name"]
-        user_embeddings = data["embeddings"]
+            dist = find_cosine_distance(db_vector, target_embedding)
+            if dist < min_distance:
+                min_distance = dist
+                best_match_nim = row['nim']
+                best_match_name = row['name']
 
-        # Check against all stored angles for this user
-        for saved_emb in user_embeddings:
-            distance = find_cosine_distance(saved_emb, target_embedding)
+        # 4. Result
+        if min_distance <= THRESHOLD:
+            confidence = f"{max(0, (1 - (min_distance / THRESHOLD)) * 100):.2f}%"
             
-            if distance < min_distance:
-                min_distance = distance
-                best_match_nim = nim
-                best_match_name = user_name
+            # Save Log to DB
+            c.execute('''
+                INSERT INTO logs (nim, name, model, confidence, distance)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (best_match_nim, best_match_name, "Facenet512", confidence, float(min_distance)))
+            conn.commit()
+            conn.close()
 
-    # 3. Determine result
-    if min_distance <= THRESHOLD:
-        confidence = max(0, (1 - (min_distance / THRESHOLD)) * 100)
-        return {
-            "status": "success",
-            "data": {
-                "nim": best_match_nim,
-                "name": best_match_name,
-                "distance": round(min_distance, 4),
-                "confidence": f"{confidence:.2f}%",
-                "model": "Facenet512"
+            return {
+                "status": "success",
+                "data": {
+                    "nim": best_match_nim,
+                    "name": best_match_name,
+                    "confidence": confidence,
+                    "distance": round(min_distance, 4)
+                }
             }
-        }
-    else:
-        return {"status": "failed", "message": "Face not recognized"}
+        else:
+            conn.close()
+            return {"status": "failed", "message": "Face not recognized"}
+            
+    except Exception as e:
+        return {"status": "error", "message": f"DB Error: {str(e)}"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)

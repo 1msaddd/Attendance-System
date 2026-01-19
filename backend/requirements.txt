@@ -1,9 +1,7 @@
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.9
-pydantic>=2.0.0
-deepface==0.0.79
-numpy>=1.24.3
-opencv-python-headless>=4.8.0
-tensorflow==2.15.0
-tf-keras==2.15.0
+fastapi
+uvicorn
+pydantic
+deepface
+opencv-python-headless
+numpy
+psycopg2-binary
