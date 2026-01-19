@@ -56,7 +56,7 @@ export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [logs, setLogs] = useState([]);
   const [serverStatus, setServerStatus] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // New State for Mobile Menu
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Load logs dari LocalStorage
   useEffect(() => {
@@ -125,14 +125,17 @@ export default function App() {
         </nav>
       </div>
 
-      {/* Header Mobile */}
-      <div className="md:hidden fixed top-0 w-full bg-white z-30 border-b p-4 flex justify-between items-center shadow-sm h-16">
-        <div className="flex items-center gap-3">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg">
-                <Menu size={24} />
-            </button>
-            <h1 className="font-bold text-blue-600 flex items-center gap-2"><Activity size={18}/> DeepFace</h1>
-        </div>
+      {/* Header Mobile (UPDATED) */}
+      <div className="md:hidden fixed top-0 w-full bg-blue-600 z-30 shadow-md h-16 px-4 flex justify-between items-center">
+        {/* Burger Button (Left, White) */}
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-white hover:bg-blue-700 rounded-lg transition-colors">
+            <Menu size={24} />
+        </button>
+
+        {/* Logo (Right, White, Smaller Text) */}
+        <h1 className="font-bold text-white text-lg flex items-center gap-2">
+            <Activity size={18}/> DeepFace
+        </h1>
       </div>
 
       {/* Konten Utama */}
