@@ -125,15 +125,15 @@ export default function App() {
         </nav>
       </div>
 
-      {/* Header Mobile (UPDATED) */}
-      <div className="md:hidden fixed top-0 w-full bg-blue-600 z-30 shadow-md h-16 px-4 flex justify-between items-center">
-        {/* Burger Button (Left, White) */}
-        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-white hover:bg-blue-700 rounded-lg transition-colors">
+      {/* Header Mobile (FIXED) */}
+      <div className="md:hidden fixed top-0 w-full bg-white z-30 shadow-md h-16 px-4 flex justify-between items-center">
+        {/* Burger Button: Left, Blue Color */}
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
             <Menu size={24} />
         </button>
 
-        {/* Logo (Right, White, Smaller Text) */}
-        <h1 className="font-bold text-white text-lg flex items-center gap-2">
+        {/* Logo: Right, Blue Color, Smaller Size */}
+        <h1 className="font-bold text-blue-600 text-lg flex items-center gap-2">
             <Activity size={18}/> DeepFace
         </h1>
       </div>
