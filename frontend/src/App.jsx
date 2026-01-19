@@ -115,7 +115,11 @@ export default function App() {
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 flex justify-between items-center border-b">
            <h1 className="text-xl font-bold text-blue-600 flex items-center gap-2">DeepFace</h1>
-           <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><X size={20}/></button>
+           
+           {/* CLOSE BUTTON (Updated to match Burger Button) */}
+           <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
+              <X size={20}/>
+           </button>
         </div>
         <nav className="p-4 space-y-2">
           <NavItem active={activePage === 'dashboard'} onClick={() => { setActivePage('dashboard'); setIsMobileMenuOpen(false); }} icon={LayoutDashboard} label="Dashboard" />
@@ -125,14 +129,14 @@ export default function App() {
         </nav>
       </div>
 
-      {/* Header Mobile (UPDATED) */}
+      {/* Header Mobile */}
       <div className="md:hidden fixed top-0 w-full bg-white z-30 shadow-md h-16 px-4 flex justify-between items-center">
-        {/* Burger Button: Blue Box with White Icon */}
+        {/* Burger Button (Blue Box) */}
         <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
             <Menu size={24} />
         </button>
 
-        {/* Logo: Right Side, Blue Text */}
+        {/* Logo */}
         <h1 className="font-bold text-blue-600 text-lg flex items-center gap-2">
             <Activity size={18}/> DeepFace
         </h1>
@@ -194,7 +198,6 @@ const Dashboard = ({ logs }) => {
         <p className="text-gray-500 text-sm md:text-base">Monitoring real-time absensi mahasiswa.</p>
       </div>
 
-      {/* Responsive Grid: 1 column mobile, 3 columns desktop */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <Card title="Total Mahasiswa" value={totalRegistered} icon={Users} color="bg-blue-500" />
         <Card title="Total Absensi" value={logs.length} icon={CheckCircle} color="bg-green-500" />
@@ -207,7 +210,6 @@ const Dashboard = ({ logs }) => {
           <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-500">Real-time</span>
         </div>
         
-        {/* Scrollable Table for Mobile */}
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[600px]">
             <thead className="bg-gray-50 text-gray-500 text-sm">
