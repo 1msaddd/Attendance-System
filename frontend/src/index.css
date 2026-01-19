@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 1. Paksa Skema Warna Terang (Light Mode) */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light !important; /* Paksa light mode dengan !important */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  display: block;
+  place-items: start;
+  min-width: 100%;
+  min-height: 100vh;
+  background-color: #f9fafb;
+  overflow-x: hidden;
+  color: #111827; /* Paksa warna teks default hitam */
+}
+
+#root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+/* 2. PAKSA TOMBOL JADI PUTIH */
+button {
+  background-color: #ffffff; /* Ubah dari transparent ke putih */
+  color: #374151; /* Warna teks abu-abu gelap */
+  border: 1px solid #e5e7eb; /* Tambah border tipis agar terlihat rapi */
+  cursor: pointer;
+}
+
+/* PENTING:
+   Karena kita memaksa semua tombol jadi putih, kita harus memastikan
+   tombol yang punya class Tailwind (seperti bg-blue-600) tidak tertimpa.
+   Tailwind biasanya menang secara prioritas (specificity), tapi jika tidak,
+   kode di bawah ini menjaga agar tombol 'Primary' tetap berwarna.
+*/
+
+/* Reset Link */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
