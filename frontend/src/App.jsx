@@ -134,17 +134,18 @@ export default function App() {
 
 const Dashboard = () => {
   const [logs, setLogs] = useState([]);
-  const [totalUsers, setTotalUsers] = useState(0);
+  const [stats, setStats] = useState({ total_users: 0, total_logs: 0 });
 
   const fetchData = async () => {
     try {
-      const statsRes = await fetch(`${API_URL}/stats`);
-      const statsData = await statsRes.json();
-      if(statsData.status === 'success') setTotalUsers(statsData.total_users);
-
-      const logsRes = await fetch(`${API_URL}/logs`);
-      const logsData = await logsRes.json();
-      if(logsData.status === 'success') setLogs(logsData.data);
+      // FETCH ALL DATA IN ONE GO (FASTER)
+      const res = await fetch(`${API_URL}/dashboard`);
+      const data = await res.json();
+      
+      if(data.status === 'success') {
+          setStats(data.stats);
+          setLogs(data.logs);
+      }
     } catch (err) {
       console.warn("Server sync error");
     }
@@ -164,8 +165,8 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        <Card title="Mahasiswa Terdaftar" value={totalUsers} icon={Users} color="bg-blue-500" />
-        <Card title="Total Absensi Masuk" value={logs.length} icon={CheckCircle} color="bg-green-500" />
+        <Card title="Mahasiswa Terdaftar" value={stats.total_users} icon={Users} color="bg-blue-500" />
+        <Card title="Total Absensi Masuk" value={stats.total_logs} icon={CheckCircle} color="bg-green-500" />
         <Card title="Rata-rata Confidence" value={logs.length > 0 ? (logs.reduce((acc, curr) => acc + parseFloat(curr.confidence), 0) / logs.length).toFixed(1) + '%' : '0%'} icon={Activity} color="bg-purple-500" />
       </div>
 
@@ -239,12 +240,14 @@ const AttendancePage = ({ setServerStatus }) => {
     setIsProcessing(true);
     setResult(null);
 
+    // RESIZE IMAGE HERE TO MAKE UPLOAD FASTER
     const canvas = document.createElement('canvas');
-    const scale = 500 / videoRef.current.videoWidth;
+    const scale = 500 / videoRef.current.videoWidth; // Resize to 500px width
     canvas.width = 500;
     canvas.height = videoRef.current.videoHeight * scale;
-    canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
-    const imageBase64 = canvas.toDataURL('image/jpeg');
+    
+    canvas.getContext('2d').drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const imageBase64 = canvas.toDataURL('image/jpeg', 0.8); // Slightly compress quality
 
     try {
       const response = await fetch(`${API_URL}/verify`, {
@@ -399,7 +402,7 @@ const RegisterPage = () => {
         body: JSON.stringify(payload)
       });
       const data = await response.json();
-      if (data.status === 'success') { setShowSuccessModal(true); } else { alert("ERROR: " + (data.message || "Error server")); }
+      if (data.status === 'success') { setShowSuccessModal(true); } else { alert("ERROR: " + (data.detail || data.message || "Error server")); }
     } catch (err) { alert("Gagal koneksi ke server Python."); } finally { setIsUploading(false); }
   };
 
