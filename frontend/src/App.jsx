@@ -1,22 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Camera, 
-  UserPlus, 
-  Upload, 
-  LayoutDashboard, 
-  UserCheck, 
-  CheckCircle, 
-  XCircle, 
-  Activity, 
-  Users,
-  FileUp,
-  RefreshCw,
-  AlertTriangle,
-  Trash2,
-  ChevronRight,
-  RotateCcw,
-  Menu, 
-  X 
+  Camera, UserPlus, Upload, LayoutDashboard, UserCheck, 
+  CheckCircle, XCircle, Activity, Users, FileUp, 
+  RefreshCw, AlertTriangle, Trash2, RotateCcw, Menu, X 
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
@@ -49,6 +35,18 @@ const Card = ({ title, value, icon: Icon, color }) => (
   </div>
 );
 
+const NavItem = ({ active, onClick, icon: Icon, label }) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors border-0 text-left ${
+      active ? 'bg-blue-50 text-blue-600 font-semibold' : 'bg-white text-gray-600 hover:bg-gray-50'
+    }`}
+  >
+    <Icon size={20} />
+    {label}
+  </button>
+);
+
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [serverStatus, setServerStatus] = useState(true);
@@ -64,9 +62,13 @@ export default function App() {
     }
   };
 
+  const handleNav = (page) => {
+    setActivePage(page);
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="flex h-screen w-full bg-gray-50 font-sans text-gray-900 overflow-hidden">
-      
       <aside className="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col flex-shrink-0 z-20">
         <div className="p-6 border-b border-gray-100">
           <h1 className="text-2xl font-bold text-blue-600 flex items-center gap-2">
@@ -75,10 +77,10 @@ export default function App() {
           <p className="text-xs text-gray-500 mt-1">Sistem Absensi Cerdas</p>
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          <NavItem active={activePage === 'dashboard'} onClick={() => setActivePage('dashboard')} icon={LayoutDashboard} label="Dashboard" />
-          <NavItem active={activePage === 'attendance'} onClick={() => setActivePage('attendance')} icon={UserCheck} label="Absensi Online" />
-          <NavItem active={activePage === 'register'} onClick={() => setActivePage('register')} icon={UserPlus} label="Registrasi Wajah" />
-          <NavItem active={activePage === 'upload'} onClick={() => setActivePage('upload')} icon={Upload} label="Upload Dataset" />
+          <NavItem active={activePage === 'dashboard'} onClick={() => handleNav('dashboard')} icon={LayoutDashboard} label="Dashboard" />
+          <NavItem active={activePage === 'attendance'} onClick={() => handleNav('attendance')} icon={UserCheck} label="Absensi Online" />
+          <NavItem active={activePage === 'register'} onClick={() => handleNav('register')} icon={UserPlus} label="Registrasi Wajah" />
+          <NavItem active={activePage === 'upload'} onClick={() => handleNav('upload')} icon={Upload} label="Upload Dataset" />
         </nav>
         <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
           <div className={`inline-block w-2 h-2 rounded-full mr-2 ${serverStatus ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -98,10 +100,10 @@ export default function App() {
            </button>
         </div>
         <nav className="p-4 space-y-2">
-          <NavItem active={activePage === 'dashboard'} onClick={() => { setActivePage('dashboard'); setIsMobileMenuOpen(false); }} icon={LayoutDashboard} label="Dashboard" />
-          <NavItem active={activePage === 'attendance'} onClick={() => { setActivePage('attendance'); setIsMobileMenuOpen(false); }} icon={UserCheck} label="Absensi Online" />
-          <NavItem active={activePage === 'register'} onClick={() => { setActivePage('register'); setIsMobileMenuOpen(false); }} icon={UserPlus} label="Registrasi Wajah" />
-          <NavItem active={activePage === 'upload'} onClick={() => { setActivePage('upload'); setIsMobileMenuOpen(false); }} icon={Upload} label="Upload Dataset" />
+          <NavItem active={activePage === 'dashboard'} onClick={() => handleNav('dashboard')} icon={LayoutDashboard} label="Dashboard" />
+          <NavItem active={activePage === 'attendance'} onClick={() => handleNav('attendance')} icon={UserCheck} label="Absensi Online" />
+          <NavItem active={activePage === 'register'} onClick={() => handleNav('register')} icon={UserPlus} label="Registrasi Wajah" />
+          <NavItem active={activePage === 'upload'} onClick={() => handleNav('upload')} icon={Upload} label="Upload Dataset" />
         </nav>
       </div>
 
@@ -120,7 +122,7 @@ export default function App() {
             <AlertTriangle size={20} className="flex-shrink-0"/>
             <div>
               <strong className="font-bold">Gagal Terhubung! </strong>
-              <span className="block sm:inline">Pastikan backend berjalan (port 5000).</span>
+              <span className="block sm:inline">Pastikan backend berjalan.</span>
             </div>
           </div>
         )}
@@ -130,20 +132,6 @@ export default function App() {
   );
 }
 
-const NavItem = ({ active, onClick, icon: Icon, label }) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors border-0 text-left ${
-      active 
-        ? 'bg-blue-50 text-blue-600 font-semibold' 
-        : 'bg-white text-gray-600 hover:bg-gray-50'
-    }`}
-  >
-    <Icon size={20} />
-    {label}
-  </button>
-);
-
 const Dashboard = () => {
   const [logs, setLogs] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -152,15 +140,11 @@ const Dashboard = () => {
     try {
       const statsRes = await fetch(`${API_URL}/stats`);
       const statsData = await statsRes.json();
-      if(statsData.status === 'success') {
-          setTotalUsers(statsData.total_users);
-      }
+      if(statsData.status === 'success') setTotalUsers(statsData.total_users);
 
       const logsRes = await fetch(`${API_URL}/logs`);
       const logsData = await logsRes.json();
-      if(logsData.status === 'success') {
-          setLogs(logsData.data);
-      }
+      if(logsData.status === 'success') setLogs(logsData.data);
     } catch (err) {
       console.warn("Server sync error");
     }
@@ -180,7 +164,7 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        <Card title="Total Mahasiswa Terdaftar" value={totalUsers} icon={Users} color="bg-blue-500" />
+        <Card title="Mahasiswa Terdaftar" value={totalUsers} icon={Users} color="bg-blue-500" />
         <Card title="Total Absensi Masuk" value={logs.length} icon={CheckCircle} color="bg-green-500" />
         <Card title="Rata-rata Confidence" value={logs.length > 0 ? (logs.reduce((acc, curr) => acc + parseFloat(curr.confidence), 0) / logs.length).toFixed(1) + '%' : '0%'} icon={Activity} color="bg-purple-500" />
       </div>
@@ -188,7 +172,7 @@ const Dashboard = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center">
           <h3 className="font-bold text-lg text-gray-800">Log Aktivitas Terkini</h3>
-          <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-500">Real-time</span>
+          <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-500">Real-time DB</span>
         </div>
         
         <div className="overflow-x-auto">

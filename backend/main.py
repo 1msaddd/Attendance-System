@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
@@ -12,8 +12,7 @@ import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# --- CONFIGURATION ---
-app = FastAPI(title="DeepFace Embedding API (Supabase)")
+app = FastAPI(title="DeepFace API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,10 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get DB URL from Hugging Face Secrets
 DB_URL = os.environ.get("DB_URL")
 
-# --- DATABASE CONNECTION ---
 def get_db_connection():
     if not DB_URL:
         raise Exception("DB_URL environment variable not found")
@@ -34,12 +31,10 @@ def get_db_connection():
     return conn
 
 def init_db():
-    """Initialize PostgreSQL tables automatically"""
     try:
         conn = get_db_connection()
         c = conn.cursor()
         
-        # Table 1: Users
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 nim TEXT PRIMARY KEY,
@@ -48,7 +43,6 @@ def init_db():
             );
         ''')
         
-        # Table 2: Embeddings (Vectors stored as JSONB)
         c.execute('''
             CREATE TABLE IF NOT EXISTS embeddings (
                 id SERIAL PRIMARY KEY,
@@ -57,7 +51,6 @@ def init_db():
             );
         ''')
 
-        # Table 3: Logs
         c.execute('''
             CREATE TABLE IF NOT EXISTS logs (
                 id SERIAL PRIMARY KEY,
@@ -72,27 +65,26 @@ def init_db():
         
         conn.commit()
         conn.close()
-        print("[INFO] Database connected and initialized.")
+        print("Database initialized.")
     except Exception as e:
-        print(f"[ERR] Database init failed: {e}")
+        print(f"Database init failed: {e}")
 
-# Initialize tables on startup
 if DB_URL:
     init_db()
-else:
-    print("[WARN] No DB_URL found. Check your HF Secrets.")
 
-# --- DATA MODELS ---
 class RegisterRequest(BaseModel):
     nim: str
     name: str
+    images: List[str]
+
+class UploadRequest(BaseModel):
+    nim: str
     images: List[str]
 
 class VerifyRequest(BaseModel):
     image: str
     model: str = "Facenet512"
 
-# --- HELPER FUNCTIONS ---
 def base64_to_cv2(base64_string):
     try:
         if "," in base64_string:
@@ -110,8 +102,6 @@ def find_cosine_distance(source_representation, test_representation):
     c = np.sum(np.multiply(test_representation, test_representation))
     return 1 - (a / (np.sqrt(b) * np.sqrt(c)))
 
-# --- ENDPOINTS ---
-
 @app.get("/stats")
 def get_stats():
     try:
@@ -119,7 +109,6 @@ def get_stats():
         c = conn.cursor()
         c.execute("SELECT COUNT(*) as count FROM users")
         users = c.fetchone()['count']
-        
         c.execute("SELECT COUNT(*) as count FROM logs")
         logs = c.fetchone()['count']
         conn.close()
@@ -132,12 +121,10 @@ def get_logs():
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        # Fetch last 50 logs (Newest first)
         c.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 50")
         rows = c.fetchall()
         conn.close()
         
-        # Fix timestamp format for JSON
         for row in rows:
             if row['timestamp']:
                 row['timestamp'] = str(row['timestamp'])
@@ -152,7 +139,42 @@ def register(req: RegisterRequest):
         raise HTTPException(status_code=400, detail="Missing data")
 
     new_embeddings = []
-    # Process images
+    for img_b64 in req.images:
+        img = base64_to_cv2(img_b64)
+        if img is None: continue
+        try:
+            results = DeepFace.represent(img_path=img, model_name="Facenet512", enforce_detection=False)
+            if results: new_embeddings.append(results[0]["embedding"])
+        except: continue
+
+    if not new_embeddings:
+        raise HTTPException(status_code=400, detail="No faces detected")
+
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO users (nim, name) VALUES (%s, %s)
+            ON CONFLICT (nim) DO UPDATE SET name = EXCLUDED.name
+        """, (req.nim, req.name))
+        
+        for emb in new_embeddings:
+            c.execute("INSERT INTO embeddings (nim, vector) VALUES (%s, %s)", 
+                      (req.nim, json.dumps(emb)))
+            
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    return {"status": "success", "message": f"Registered {req.name}"}
+
+@app.post("/upload-dataset")
+def upload_dataset(req: UploadRequest):
+    if not req.nim or not req.images:
+        raise HTTPException(status_code=400, detail="Missing data")
+
+    new_embeddings = []
     for img_b64 in req.images:
         img = base64_to_cv2(img_b64)
         if img is None: continue
@@ -168,30 +190,28 @@ def register(req: RegisterRequest):
         conn = get_db_connection()
         c = conn.cursor()
         
-        # 1. Insert User
-        c.execute("""
-            INSERT INTO users (nim, name) VALUES (%s, %s)
-            ON CONFLICT (nim) DO UPDATE SET name = EXCLUDED.name
-        """, (req.nim, req.name))
-        
-        # 2. Insert Embeddings
+        c.execute("SELECT name FROM users WHERE nim = %s", (req.nim,))
+        if not c.fetchone():
+             conn.close()
+             raise HTTPException(status_code=404, detail="User not found. Register first.")
+
         for emb in new_embeddings:
-            c.execute("INSERT INTO embeddings (nim, vector) VALUES (%s, %s)", 
-                      (req.nim, json.dumps(emb)))
+            c.execute("INSERT INTO embeddings (nim, vector) VALUES (%s, %s)", (req.nim, json.dumps(emb)))
             
         conn.commit()
         conn.close()
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-    return {"status": "success", "message": f"Registered {req.name}"}
+
+    return {"status": "success", "message": f"Added {len(new_embeddings)} photos for {req.nim}"}
 
 @app.post("/verify")
 def verify(req: VerifyRequest):
     img = base64_to_cv2(req.image)
     if img is None: raise HTTPException(status_code=400, detail="Invalid image")
 
-    # 1. Convert image to Vector
     try:
         target_embedding = DeepFace.represent(
             img_path=img, 
@@ -204,8 +224,6 @@ def verify(req: VerifyRequest):
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        
-        # 2. Fetch all known faces
         c.execute("SELECT u.nim, u.name, e.vector FROM users u JOIN embeddings e ON u.nim = e.nim")
         rows = c.fetchall()
         
@@ -214,10 +232,9 @@ def verify(req: VerifyRequest):
         min_distance = 100.0
         THRESHOLD = 0.30
 
-        # 3. Compare
         for row in rows:
             db_vector = row['vector']
-            if isinstance(db_vector, str): db_vector = json.loads(db_vector) # Handle JSON string if needed
+            if isinstance(db_vector, str): db_vector = json.loads(db_vector)
 
             dist = find_cosine_distance(db_vector, target_embedding)
             if dist < min_distance:
@@ -225,11 +242,9 @@ def verify(req: VerifyRequest):
                 best_match_nim = row['nim']
                 best_match_name = row['name']
 
-        # 4. Result
         if min_distance <= THRESHOLD:
             confidence = f"{max(0, (1 - (min_distance / THRESHOLD)) * 100):.2f}%"
             
-            # Save Log to DB
             c.execute('''
                 INSERT INTO logs (nim, name, model, confidence, distance)
                 VALUES (%s, %s, %s, %s, %s)
@@ -254,4 +269,4 @@ def verify(req: VerifyRequest):
         return {"status": "error", "message": f"DB Error: {str(e)}"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=7860)
