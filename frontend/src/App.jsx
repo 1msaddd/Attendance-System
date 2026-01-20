@@ -188,7 +188,7 @@ const Dashboard = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center">
           <h3 className="font-bold text-lg text-gray-800">Log Aktivitas Terkini</h3>
-          <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-500">Real-time DB</span>
+          <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-500">Real-time</span>
         </div>
         
         <div className="overflow-x-auto">
