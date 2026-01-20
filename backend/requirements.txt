@@ -5,6 +5,5 @@ deepface
 opencv-python-headless
 numpy
 psycopg2-binary
-tf-keras
-tensorflow
+tensorflow==2.15.0
 huggingface_hub
