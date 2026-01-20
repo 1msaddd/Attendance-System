@@ -143,7 +143,7 @@ def register(req: RegisterRequest):
         img = base64_to_cv2(img_b64)
         if img is None: continue
         try:
-            results = DeepFace.represent(img_path=img, model_name="Facenet512", enforce_detection=False)
+            results = DeepFace.represent(img_path=img, model_name="Facenet512", enforce_detection=False, detector_backend="opencv")
             if results: new_embeddings.append(results[0]["embedding"])
         except: continue
 
@@ -179,7 +179,7 @@ def upload_dataset(req: UploadRequest):
         img = base64_to_cv2(img_b64)
         if img is None: continue
         try:
-            results = DeepFace.represent(img_path=img, model_name="Facenet512", enforce_detection=False)
+            results = DeepFace.represent(img_path=img, model_name="Facenet512", enforce_detection=False, detector_backend="opencv")
             if results: new_embeddings.append(results[0]["embedding"])
         except: continue
 
@@ -216,7 +216,8 @@ def verify(req: VerifyRequest):
         target_embedding = DeepFace.represent(
             img_path=img, 
             model_name="Facenet512", 
-            enforce_detection=False
+            enforce_detection=False,
+            detector_backend="opencv"
         )[0]["embedding"]
     except:
         return {"status": "failed", "message": "No face detected"}

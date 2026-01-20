@@ -240,8 +240,9 @@ const AttendancePage = ({ setServerStatus }) => {
     setResult(null);
 
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
+    const scale = 500 / videoRef.current.videoWidth;
+    canvas.width = 500;
+    canvas.height = videoRef.current.videoHeight * scale;
     canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
     const imageBase64 = canvas.toDataURL('image/jpeg');
 
